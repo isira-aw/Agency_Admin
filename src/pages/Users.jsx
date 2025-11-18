@@ -1,0 +1,368 @@
+import { useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Power, PowerOff, Settings } from 'lucide-react';
+import { userAPI } from '../services/api';
+
+export default function UsersManagement() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [showLicenseModal, setShowLicenseModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [licenseAction, setLicenseAction] = useState(null); // 'activate' or 'deactivate'
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const response = await userAPI.getAll();
+      setUsers(response.data);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      alert('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeLicenseModal = () => {
+    setShowLicenseModal(false);
+    setSelectedUser(null);
+    setLicenseAction(null);
+  };
+
+  const handleLicenseUpdate = async () => {
+    if (!selectedUser || !licenseAction) return;
+
+    const newStatus = licenseAction === 'activate';
+    
+    try {
+      await userAPI.toggleLicense(selectedUser.id, newStatus);
+      await loadUsers();
+      alert(`License ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      closeLicenseModal();
+    } catch (error) {
+      console.error('Error updating license:', error);
+      alert('Failed to update license status');
+    }
+  };
+
+  const deleteUser = async (id, username) => {
+    if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      await userAPI.delete(id);
+      await loadUsers();
+      alert('User deleted successfully');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user');
+    }
+  };
+
+  const openEditModal = (user) => {
+    setEditingUser(user);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingUser(null);
+  };
+
+  const stats = {
+    total: users.length,
+    active: users.filter(u => u.license_active).length,
+    inactive: users.filter(u => !u.license_active).length
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Users Management</h1>
+          <p className="text-gray-600 mt-2">Manage user accounts and licenses</p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors shadow-md"
+        >
+          <Plus size={20} />
+          <span>Create User</span>
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <p className="text-gray-600 text-sm">Total Users</p>
+          <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <p className="text-gray-600 text-sm">Active Licenses</p>
+          <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <p className="text-gray-600 text-sm">Inactive Licenses</p>
+          <p className="text-2xl font-bold text-red-600">{stats.inactive}</p>
+        </div>
+      </div>
+
+      {/* Users Table */}
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Username</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Full Name</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">License</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                    No users found. Create your first user!
+                  </td>
+                </tr>
+              ) : (
+                users.map((user) => (
+                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{user.id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800">{user.username}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.full_name || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{user.phone || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        user.license_active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {user.license_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <span className="capitalize">{user.license_type}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded transition-colors"
+                          title="Edit User"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        
+                        <button
+                          onClick={() => deleteUser(user.id, user.username)}
+                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Create/Edit User Modal */}
+      {showModal && (
+        <UserModal 
+          user={editingUser} 
+          onClose={closeModal} 
+          onSuccess={() => {
+            closeModal();
+            loadUsers();
+          }} 
+        />
+      )}
+
+      {/* License Management Modal */}
+      {showLicenseModal && selectedUser && licenseAction && (
+        <LicenseManagementModal 
+          user={selectedUser}
+          action={licenseAction}
+          onClose={closeLicenseModal}
+          onConfirm={handleLicenseUpdate}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserModal({ user, onClose, onSuccess }) {
+  const [form, setForm] = useState({
+    username: user?.username || '',
+    email: user?.email || '',
+    password: '',
+    full_name: user?.full_name || '',
+    phone: user?.phone || '',
+    license_type: user?.license_type || 'basic',
+    license_active: user?.license_active ?? true
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (user) {
+        // Update existing user
+        const updateData = { ...form };
+        if (!updateData.password) delete updateData.password; // Don't send empty password
+        await userAPI.update(user.id, updateData);
+        alert('User updated successfully');
+      } else {
+        // Create new user
+        await userAPI.create(form);
+        alert('User created successfully');
+      }
+      onSuccess();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      alert(error.response?.data?.detail || 'Failed to save user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b">
+          <h2 className="text-2xl font-bold text-gray-800">
+            {user ? 'Edit User' : 'Create New User'}
+          </h2>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Username *
+              </label>
+              <input
+                type="text"
+                value={form.username}
+                onChange={(e) => setForm({...form, username: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Email *
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({...form, email: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                License Type
+              </label>
+              <select
+                value={form.license_type}
+                onChange={(e) => setForm({...form, license_type: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="basic">Basic</option>
+                <option value="premium">Premium</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                License Status
+              </label>
+              <select
+                value={form.license_active}
+                onChange={(e) => setForm({...form, license_active: e.target.value === 'true'})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={form.full_name}
+                onChange={(e) => setForm({...form, full_name: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Phone
+              </label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm({...form, phone: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors "
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : user ? 'Update User' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
