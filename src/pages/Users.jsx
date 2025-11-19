@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Power, PowerOff, Settings } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText } from 'lucide-react';
 import { userAPI } from '../services/api';
+import UserDocuments from '../components/UserDocuments';
 
 export default function UsersManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [showLicenseModal, setShowLicenseModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [licenseAction, setLicenseAction] = useState(null); // 'activate' or 'deactivate'
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [selectedUserForDocs, setSelectedUserForDocs] = useState(null);
 
   useEffect(() => {
     loadUsers();
@@ -24,28 +24,6 @@ export default function UsersManagement() {
       alert('Failed to load users');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const closeLicenseModal = () => {
-    setShowLicenseModal(false);
-    setSelectedUser(null);
-    setLicenseAction(null);
-  };
-
-  const handleLicenseUpdate = async () => {
-    if (!selectedUser || !licenseAction) return;
-
-    const newStatus = licenseAction === 'activate';
-    
-    try {
-      await userAPI.toggleLicense(selectedUser.id, newStatus);
-      await loadUsers();
-      alert(`License ${newStatus ? 'activated' : 'deactivated'} successfully`);
-      closeLicenseModal();
-    } catch (error) {
-      console.error('Error updating license:', error);
-      alert('Failed to update license status');
     }
   };
 
@@ -72,6 +50,16 @@ export default function UsersManagement() {
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
+  };
+
+  const openDocuments = (user) => {
+    setSelectedUserForDocs(user);
+    setShowDocuments(true);
+  };
+
+  const closeDocuments = () => {
+    setShowDocuments(false);
+    setSelectedUserForDocs(null);
   };
 
   const stats = {
@@ -167,6 +155,14 @@ export default function UsersManagement() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center space-x-2">
                         <button
+                          onClick={() => openDocuments(user)}
+                          className="text-purple-600 hover:text-purple-800 p-1 hover:bg-purple-50 rounded transition-colors"
+                          title="View Documents"
+                        >
+                          <FileText size={16} />
+                        </button>
+                        
+                        <button
                           onClick={() => openEditModal(user)}
                           className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded transition-colors"
                           title="Edit User"
@@ -203,13 +199,12 @@ export default function UsersManagement() {
         />
       )}
 
-      {/* License Management Modal */}
-      {showLicenseModal && selectedUser && licenseAction && (
-        <LicenseManagementModal 
-          user={selectedUser}
-          action={licenseAction}
-          onClose={closeLicenseModal}
-          onConfirm={handleLicenseUpdate}
+      {/* Documents Modal */}
+      {showDocuments && selectedUserForDocs && (
+        <UserDocuments
+          userId={selectedUserForDocs.id}
+          username={selectedUserForDocs.username}
+          onClose={closeDocuments}
         />
       )}
     </div>
@@ -292,6 +287,43 @@ function UserModal({ user, onClose, onSuccess }) {
             
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Password {user && '(leave blank to keep current)'}
+              </label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({...form, password: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required={!user}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={form.full_name}
+                onChange={(e) => setForm({...form, full_name: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Phone
+              </label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm({...form, phone: e.target.value})}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 License Type
               </label>
               <select
@@ -318,37 +350,13 @@ function UserModal({ user, onClose, onSuccess }) {
                 <option value="false">Inactive</option>
               </select>
             </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Full Name
-              </label>
-              <input
-                type="text"
-                value={form.full_name}
-                onChange={(e) => setForm({...form, full_name: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(e) => setForm({...form, phone: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
           </div>
           
           <div className="flex justify-end space-x-3 mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors "
+              className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               disabled={loading}
             >
               Cancel

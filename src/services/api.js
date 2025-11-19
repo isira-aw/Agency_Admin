@@ -46,4 +46,37 @@ export const calendarAPI = {
   getToday: () => api.get('/calendar/today'),
 };
 
+// Documents API
+export const documentsAPI = {
+  // Get all documents for a specific user
+  getUserDocuments: (userId) => api.get(`/documents/user/${userId}`),
+  
+  // Upload a document for a user
+  uploadDocument: (userId, file, category = null, description = null) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (category) formData.append('category', category);
+    if (description) formData.append('description', description);
+    
+    return axios.post(`${API_BASE_URL}/documents/upload/${userId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  // Download a document (returns blob)
+  downloadDocument: (docId) => {
+    return axios.get(`${API_BASE_URL}/documents/download/${docId}`, {
+      responseType: 'blob',
+    });
+  },
+  // View a document (for preview in browser)
+  viewDocument: (docId) => {
+    return `${API_BASE_URL}/documents/view/${docId}`;
+  },
+  
+  // Delete a document
+  deleteDocument: (docId) => api.delete(`/documents/${docId}`),
+};
+
 export default api;
