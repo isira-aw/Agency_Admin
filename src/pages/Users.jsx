@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, Key, Eye, EyeOff } from 'lucide-react';
 import { userAPI } from '../services/api';
 import UserDocuments from '../components/UserDocuments';
 
@@ -10,6 +10,8 @@ export default function UsersManagement() {
   const [editingUser, setEditingUser] = useState(null);
   const [showDocuments, setShowDocuments] = useState(false);
   const [selectedUserForDocs, setSelectedUserForDocs] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState(null);
 
   useEffect(() => {
     loadUsers();
@@ -60,6 +62,16 @@ export default function UsersManagement() {
   const closeDocuments = () => {
     setShowDocuments(false);
     setSelectedUserForDocs(null);
+  };
+
+  const openPasswordModal = (user) => {
+    setSelectedUserForPassword(user);
+    setShowPasswordModal(true);
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setSelectedUserForPassword(null);
   };
 
   const stats = {
@@ -155,6 +167,14 @@ export default function UsersManagement() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center space-x-2">
                         <button
+                          onClick={() => openPasswordModal(user)}
+                          className="text-yellow-600 hover:text-yellow-800 p-1 hover:bg-yellow-50 rounded transition-colors"
+                          title="Set Password"
+                        >
+                          <Key size={16} />
+                        </button>
+                        
+                        <button
                           onClick={() => openDocuments(user)}
                           className="text-purple-600 hover:text-purple-800 p-1 hover:bg-purple-50 rounded transition-colors"
                           title="View Documents"
@@ -207,6 +227,18 @@ export default function UsersManagement() {
           onClose={closeDocuments}
         />
       )}
+
+      {/* Password Modal */}
+      {showPasswordModal && selectedUserForPassword && (
+        <SetPasswordModal
+          user={selectedUserForPassword}
+          onClose={closePasswordModal}
+          onSuccess={() => {
+            closePasswordModal();
+            alert('Password set successfully');
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -232,6 +264,8 @@ function UserModal({ user, onClose, onSuccess }) {
         // Update existing user
         const updateData = { ...form };
         if (!updateData.password) delete updateData.password; // Don't send empty password
+        delete updateData.username; // Don't update username
+        delete updateData.email; // Don't update email
         await userAPI.update(user.id, updateData);
         alert('User updated successfully');
       } else {
@@ -269,6 +303,7 @@ function UserModal({ user, onClose, onSuccess }) {
                 onChange={(e) => setForm({...form, username: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
+                disabled={!!user}
               />
             </div>
             
@@ -282,21 +317,24 @@ function UserModal({ user, onClose, onSuccess }) {
                 onChange={(e) => setForm({...form, email: e.target.value})}
                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
+                disabled={!!user}
               />
             </div>
             
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Password {user && '(leave blank to keep current)'}
-              </label>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({...form, password: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required={!user}
-              />
-            </div>
+            {!user && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Password *
+                </label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm({...form, password: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            )}
             
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -351,6 +389,14 @@ function UserModal({ user, onClose, onSuccess }) {
               </select>
             </div>
           </div>
+
+          {user && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>Note:</strong> To change this user's password, use the "Set Password" button (🔑) in the user list.
+              </p>
+            </div>
+          )}
           
           <div className="flex justify-end space-x-3 mt-6">
             <button
@@ -367,6 +413,118 @@ function UserModal({ user, onClose, onSuccess }) {
               disabled={loading}
             >
               {loading ? 'Saving...' : user ? 'Update User' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function SetPasswordModal({ user, onClose, onSuccess }) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      alert('Passwords do not match!');
+      return;
+    }
+
+    if (password.length < 6) {
+      alert('Password must be at least 6 characters long');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await userAPI.setPassword(user.id, password);
+      onSuccess();
+    } catch (error) {
+      console.error('Error setting password:', error);
+      alert(error.response?.data?.detail || 'Failed to set password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="p-6 border-b">
+          <h2 className="text-2xl font-bold text-gray-800">
+            Set Password for {user.username}
+          </h2>
+          <p className="text-sm text-gray-600 mt-1">{user.email}</p>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              New Password *
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+                minLength={6}
+                placeholder="Enter new password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Confirm Password *
+            </label>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              minLength={6}
+              placeholder="Confirm new password"
+            />
+          </div>
+
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> This password will be used by the customer to login to their profile. Make sure to share it securely with them.
+            </p>
+          </div>
+          
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center space-x-2"
+              disabled={loading}
+            >
+              <Key size={20} />
+              <span>{loading ? 'Setting Password...' : 'Set Password'}</span>
             </button>
           </div>
         </form>
